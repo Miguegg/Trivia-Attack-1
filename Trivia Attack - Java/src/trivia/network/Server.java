@@ -1,211 +1,163 @@
-package trivia.network;/*import java.io.*;
-import java.net.*;
-import java.util.*;
-import java.util.concurrent.*;
+package trivia.network;
 
-public class trivia.network.Server {
-    private int puerto = 12345;
-    private List<PlayerHandler> jugadores = new ArrayList<>();
-    private ExecutorService pool = Executors.newCachedThreadPool();
-
-    public static void main(String[] args) throws IOException {
-        new trivia.network.Server().start();
-    }
-
-    public void start() throws IOException {
-        ServerSocket serverSocket = new ServerSocket(puerto);
-        System.out.println("Servidor iniciado en puerto " + puerto);
-
-        while(jugadores.size() < 3) { // espera mínimo 3 jugadores
-            Socket socket = serverSocket.accept();
-            PlayerHandler ph = new PlayerHandler(socket, jugadores.size()+1);
-            jugadores.add(ph);
-            pool.submit(ph);
-            System.out.println("Jugador conectado: " + ph.id);
-        }
-
-        System.out.println("Comenzando la partida con " + jugadores.size() + " jugadores");
-        runGame();
-    }
-
-    private void runGame() {
-        // Aquí implementas el loop de turnos, tirada de dados,
-        // preguntas, cálculo de puntos y envío de mensajes a los clientes
-    }
-
-    class PlayerHandler implements Runnable {
-        Socket socket;
-        int id;
-        BufferedReader in;
-        PrintWriter out;
-0*/
-
-
-import trivia.model.*;
-import trivia.player.Jugador;
-import trivia.piles.MontonPreguntas;
 import trivia.game.Partida;
+import trivia.player.Jugador;
 
-import java.io.*;
-import java.net.*;
-import java.util.*;
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.*;
 
 public class Server {
 
-    private int puerto = 12345;
-    private List<PlayerHandler> jugadores = new ArrayList<>();
-    private ExecutorService pool = Executors.newCachedThreadPool();
-    private Partida partida;
+    private static final int PORT = 12345;
+    private static final int MIN_JUGADORES = 3;
+    private static final int MAX_JUGADORES = 6;
+    private static final long HOST_DECISION_TIMEOUT_SEC = 30L;
 
-    public static void main(String[] args) throws IOException {
+    private final List<PlayerHandler> handlers = new ArrayList<>();
+    private final ExecutorService pool = Executors.newCachedThreadPool();
+
+    private volatile boolean partidaIniciada = false;
+
+    public static void main(String[] args) {
         new Server().start();
     }
 
-    public void start() throws IOException {
-        ServerSocket serverSocket = new ServerSocket(puerto);
-        System.out.println("Servidor iniciado en puerto " + puerto);
+    public void start() {
+        printBanner();
+        System.out.println("Servidor iniciado en puerto " + PORT);
 
-        // Espera mínimo 3 jugadores y máximo 6
-        while(jugadores.size() < 3) {
-            Socket socket = serverSocket.accept();
-            Jugador j = new Jugador(jugadores.size()+1, "Jugador" + (jugadores.size()+1));
-            PlayerHandler ph = new PlayerHandler(socket, j);
-            jugadores.add(ph);
-            pool.submit(ph);
-            System.out.println(j.getNombre() + " conectado.");
-        }
+        // Hilo que acepta jugadores constantemente
+        new Thread(() -> {
+            try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+                while (!partidaIniciada) {
+                    Socket socket = serverSocket.accept();
+                    synchronized (handlers) {
+                        if (handlers.size() >= MAX_JUGADORES) {
+                            socket.close();
+                            continue;
+                        }
 
-        // Crear montones de ejemplo
-        List<MontonPreguntas> montones = crearMontonesEjemplo();
-        partida = new Partida(jugadores, montones);
+                        PlayerHandler ph = new PlayerHandler(socket, handlers.size() + 1);
+                        handlers.add(ph);
+                        pool.submit(ph);
 
-        broadcast("Comenzando la partida con " + jugadores.size() + " jugadores!");
+                        broadcast("Jugadores conectados: " + handlers.size() + "/" + MAX_JUGADORES);
+                        System.out.println("Conectado: " + ph.getJugador().getNombre());
 
-        // Ejecutar 6 vueltas
-        for(int vuelta=1; vuelta<=6; vuelta++){
-            broadcast("\n=== Vuelta " + vuelta + " ===");
-            ejecutarVuelta();
-        }
-
-        // Mostrar puntuaciones finales
-        broadcast("\n=== Partida finalizada! ===");
-        for(int i=0;i<jugadores.size();i++){
-            broadcast(jugadores.get(i).getNombre() + " = " + partida.getPuntuacion(i) + " puntos");
-        }
-
-        System.exit(0);
-    }
-
-    private void ejecutarVuelta() {
-        for(PlayerHandler preguntador : jugadores){
-            // Elegir rival aleatorio distinto
-            PlayerHandler respondedor;
-            do {
-                respondedor = jugadores.get(new Random().nextInt(jugadores.size()));
-            } while(respondedor == preguntador);
-
-            // Tirar dado para categoría
-            Categoria categoria = Categoria.values()[new Random().nextInt(6)];
-
-            MontonPreguntas mp = partida.getMontonDeCategoria(categoria);
-            Pregunta p = mp.robarPrimeraPregunta();
-
-            preguntador.enviarMensaje("Tu turno. Pregunta para " + respondedor.jugador.getNombre() +
-                    " en categoría " + categoria);
-            respondedor.enviarMensaje("Pregunta: " + p.getPregunta() + " (A/B/C/D)");
-
-            // Enviar opciones
-            List<Respuesta> resps = p.getOpciones();
-            char letra = 'A';
-            for(Respuesta r: resps){
-                respondedor.enviarMensaje(letra + ") " + r.texto);
-                letra++;
-            }
-
-            // Esperar respuesta con temporizador
-            String respuesta = respondedor.leerRespuestaConTimeout(15);
-            boolean acierto = false;
-            if(respuesta == null){
-                respondedor.enviarMensaje("Tiempo agotado! Se considera fallo.");
-            } else {
-                acierto = p.responderLetra(respuesta);
-                respondedor.enviarMensaje(acierto ? "ACERTASTE!" : "FALLASTE!");
-            }
-
-            int puntos = acierto ? 1 : 0;
-            if(!acierto) puntos = 1; // regla del juego: si falla, gana el preguntador
-            preguntador.enviarMensaje("Ganaste " + puntos + " puntos por esta pregunta.");
-            partida.sumarPuntos(preguntador.jugador, puntos);
-        }
-    }
-
-    private List<MontonPreguntas> crearMontonesEjemplo(){
-        List<MontonPreguntas> montones = new ArrayList<>();
-        int id = 1;
-        for(Categoria c : Categoria.values()){
-            MontonPreguntas mp = new MontonPreguntas(c);
-            for(int i=0;i<3;i++){
-                List<Respuesta> resp = new ArrayList<>();
-                resp.add(new Respuesta("Correcta", true));
-                resp.add(new Respuesta("Incorrecta1", false));
-                resp.add(new Respuesta("Incorrecta2", false));
-                resp.add(new Respuesta("Incorrecta3", false));
-                Pregunta p = new Pregunta(id++, c, "Pregunta " + id + " de " + c, resp);
-                mp.addPregunta(p);
-            }
-            montones.add(mp);
-        }
-        return montones;
-    }
-
-    private void broadcast(String msg){
-        for(PlayerHandler ph : jugadores){
-            ph.enviarMensaje(msg);
-        }
-    }
-
-    class PlayerHandler implements Runnable {
-        Socket socket;
-        Jugador jugador;
-        BufferedReader in;
-        PrintWriter out;
-
-        PlayerHandler(Socket s, Jugador j){
-            this.socket = s;
-            this.jugador = j;
-            try{
-                in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                out = new PrintWriter(socket.getOutputStream(), true);
-                enviarMensaje("Bienvenido " + j.getNombre());
-            }catch(Exception e){ e.printStackTrace();}
-        }
-
-        @Override
-        public void run() {
-            try{
-                String linea;
-                while((linea=in.readLine())!=null){
-                    System.out.println(jugador.getNombre() + " dice: " + linea);
+                        // Si tenemos mínimo jugadores, preguntar al host (primer jugador)
+                        if (handlers.size() >= MIN_JUGADORES && !partidaIniciada) {
+                            preguntarHostParaIniciar();
+                        }
+                    }
                 }
-            }catch(IOException e){ e.printStackTrace();}
-        }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }).start();
+    }
 
-        void enviarMensaje(String msg){
-            out.println(msg);
-        }
+    private void preguntarHostParaIniciar() {
+        // Evita lanzar múltiples hilos de host al mismo tiempo
+        if (partidaIniciada) return;
 
-        String leerRespuestaConTimeout(int segundos){
-            ExecutorService executor = Executors.newSingleThreadExecutor();
-            Future<String> future = executor.submit(() -> in.readLine());
-            try{
-                return future.get(segundos, TimeUnit.SECONDS);
-            }catch(Exception e){
-                future.cancel(true);
-                return null;
-            }finally{
-                executor.shutdownNow();
+        new Thread(() -> {
+            PlayerHandler host;
+            synchronized (handlers) {
+                if (handlers.isEmpty()) return;
+                host = handlers.get(0);
+            }
+
+            try {
+                host.enviarMensaje("\nSERVIDOR: Hay al menos " + handlers.size() + " jugadores conectados.");
+                host.enviarMensaje("SERVIDOR: Escribe 'start' para iniciar la partida. Timeout: "
+                        + HOST_DECISION_TIMEOUT_SEC + "s");
+
+                String decision = host.pollNextMessage(HOST_DECISION_TIMEOUT_SEC, TimeUnit.SECONDS);
+
+                if ("start".equalsIgnoreCase(decision)) {
+                    partidaIniciada = true;
+                    broadcast("SERVIDOR: Host ha decidido iniciar la partida!");
+                    iniciarPartida();
+                } else {
+                    host.enviarMensaje("SERVIDOR: No se recibió 'start'. Se sigue esperando jugadores.");
+                }
+            } catch (InterruptedException e) {
+                System.out.println("Tiempo de espera del host interrumpido.");
+            }
+        }).start();
+    }
+
+    private void iniciarPartida() {
+        // Aquí inicializarías tu clase Partida y el loop de turnos
+        broadcast("\nSERVIDOR: Inicializando partida con jugadores:");
+        ArrayList<Jugador> jugadores = new ArrayList<>();
+
+        synchronized (handlers) {
+            for (PlayerHandler ph : handlers) {
+                jugadores.add(ph.getJugador());
+                broadcast(" - " + ph.getJugador().getNombre());
             }
         }
+
+        Partida partida = new Partida(jugadores, this);
+
+        // Ejecutar el loop en un hilo separado para no bloquear el servidor
+        new Thread(() -> partida.iniciarLoop(this)).start();
+    }
+
+    public void broadcast(String msg) {
+        synchronized (handlers) {
+            for (PlayerHandler ph : handlers) {
+                ph.enviarMensaje(msg);
+            }
+        }
+    }
+
+    public void send(Jugador jugador, String msg) {
+        synchronized (handlers) {
+            for (PlayerHandler ph : handlers) {
+                if (ph.getJugador().equals(jugador)) {
+                    ph.enviarMensaje(msg);
+                    break;
+                }
+            }
+        }
+    }
+
+    private void printBanner() {
+        System.out.println("  _______   _       _                 _   _             _    _ _ ");
+        System.out.println(" |__   __| (_)     (_)           /\\  | | | |           | |  | | |");
+        System.out.println("    | |_ __ ___   ___  __ _     /  \\ | |_| |_ __ _  ___| | _| | |");
+        System.out.println("    | | '__| \\ \\ / / |/ _` |   / /\\ \\| __| __/ _` |/ __| |/ / | |");
+        System.out.println("    | | |  | |\\ V /| | (_| |  / ____ \\ |_| || (_| | (__|   <|_|_|");
+        System.out.println("    |_|_|  |_| \\_/ |_|\\__,_| /_/    \\_\\__|\\__\\__,_|\\___|_|\\_(_|_)");
+        System.out.println();
+    }
+
+
+    private void mostrarTurno(Partida partida){
+        broadcast("=======");
+        broadcast("VUELTA "+ partida.getVueltaActual());
+        broadcast("=======");
+
+        broadcast("Información de los jugadores:");
+        mostrarInformacion(partida);
+
+
+    }
+
+    private void mostrarInformacion(Partida partida) {
+        int index = 0;
+        for(Jugador jugador : partida.getJugadores()) {
+            broadcast("Jugador " + index + ":");
+            broadcast(jugador.mostrarInformacion());
+        }
+    }
+    private void opcionesTurno(){
+
     }
 }

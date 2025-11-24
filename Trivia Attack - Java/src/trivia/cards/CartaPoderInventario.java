@@ -8,7 +8,7 @@ public class CartaPoderInventario extends CartaPoder {
     private final String descripcion;
 
 
-    public CartaPoderInventario(int id, Rareza rareza, int espacio, String nombre, String descripcion, trivia.cards.strategy.CardEffect efecto) {
+    public CartaPoderInventario(int id, Rareza rareza, int espacio, String nombre, String descripcion, trivia.cards.strategy.EfectoCarta efecto) {
         super(id, rareza, espacio, efecto);
         this.nombre = nombre;
         this.descripcion = descripcion;
