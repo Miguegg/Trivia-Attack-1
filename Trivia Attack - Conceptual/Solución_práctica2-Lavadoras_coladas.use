@@ -1,0 +1,129 @@
+model Lavadora
+
+enum TipoPrenda {Camiseta,Jersey,Pantalon}
+enum EstadoPrenda{MuySucio,Sucio,Limpio}
+
+----------Clases---------------------
+abstract class Lavadora
+attributes
+    marca : String 
+    capDetergente : Integer 
+    maxTempLavado : Integer 
+    maxCentrifugado : Integer 
+    maxPeso : Integer 
+    --Una lavadora está en funcionamiento si la última de sus coladas ha comenzado y no ha terminado
+    --Además, que haya comenzado significa que haya comenzado a Lavar o a Centrifugar.
+    --Por último como Lavadora no tiene coladas directamente (sino que la tienen las subclases), hay que añadir el oclAsType
+    enFuncionamiento : Boolean derive : 
+                (not self.oclAsType(LavadoraNormal).coladas->last().inicioL.oclIsUndefined
+                    or not self.oclAsType(LavadoraNormal).coladas->last().inicioC.oclIsUndefined)
+                    and self.oclAsType(LavadoraNormal).coladas->last().fin.oclIsUndefined or --Ahora repetimos lo mismo para LavadoraSecadora
+                (not self.oclAsType(LavadoraSecadora).coladas->last().inicioL.oclIsUndefined
+                    or not self.oclAsType(LavadoraSecadora).coladas->last().inicioC.oclIsUndefined)
+                    and self.oclAsType(LavadoraSecadora).coladas->last().fin.oclIsUndefined 
+end              
+
+class LavadoraNormal < Lavadora 
+attributes 
+    capSuavizante : Integer 
+end 
+
+class LavadoraSecadora < Lavadora 
+attributes
+    maxTempSecado : Integer 
+end 
+
+abstract class Colada
+attributes
+    temp : Integer 
+    rpm : Integer 
+    cantDetergente : Integer 
+    inicioL : Integer
+    inicioC : Integer 
+    fin : Integer 
+    peso : Integer derive : self.prendas->collect(peso)->sum()
+end
+
+class ColadaNormal < Colada 
+attributes 
+    cantSuavizante : Integer 
+end
+
+class ColadaSecado < Colada 
+attributes 
+    inicioS: Integer 
+    tempSecado : Integer 
+end
+
+class Prenda 
+attributes 
+    tipo : TipoPrenda
+    peso : Integer 
+end
+
+--------Asociaciones-------------
+composition LavaNormal between 
+    LavadoraNormal [1] role lavadora
+    ColadaNormal [*] role coladas ordered
+end 
+
+composition LavaSeca between 
+    LavadoraSecadora [1] role lavadora
+    ColadaSecado [*] role coladas ordered 
+end 
+
+associationclass Estado between 
+    Colada[*] role coladas
+    Prenda[*] role prendas 
+    attributes 
+        estado : EstadoPrenda 
+end 
+
+
+----------Invariantes------------
+constraints 
+
+context LavadoraNormal 
+    --1. Límite máximo en la temperatura de lavado
+  inv LimiteTempLavado : self.maxTempLavado <=60
+    --2. Límite máximo en las revoluciones de lavado
+  inv LimiteCentrifugado : self.maxCentrifugado <=1800
+
+context LavadoraSecadora
+    --3. Límite máximo en la temperatura de lavado
+  inv LimiteTempLavado : self.maxTempLavado <=40
+    --4. Límite máximo en las revoluciones de lavado
+  inv LimiteCentrifugado : self.maxCentrifugado <=1200
+
+context Colada 
+    --5. En las coladas donde se ejecutan las dos fases, el lavado se debe hacer antes que el centrifugado
+  inv FasesEnOrden : not self.inicioL.oclIsUndefined and not self.inicioC.oclIsUndefined implies self.inicioL < self.inicioC 
+    --6. La cantidad de detergente del lavado debe ser menor o igual al máximo de la lavadora
+  inv CantidadDetergente : self.cantDetergente <= self.oclAsType(ColadaNormal).lavadora.capDetergente or
+                            self.cantDetergente <= self.oclAsType(ColadaSecado).lavadora.capDetergente 
+    --7. Todo lavado que incluya algún jersey debe realizarse, como mucho, a 30 grados
+  inv JerseysComoMucho30Grados : self.prendas->collect(tipo)->includes(#Jersey)
+                                    implies self.temp<=30
+    --8. No puede haber coladas que superen los 5 kilos y más del 50% de las prendas
+    --estuvieran muy sucias
+  inv DemasiadasPrendasMuySucias : self.peso > 5 implies
+                self.prendas->collect(estado)->select(e|e.estado=#MuySucio)->size()
+                    < self.prendas->size()/2
+    
+
+context ColadaNormal 
+    --9. La cantidad de suavizante del lavado debe ser menor o igual al máximo de la lavadora
+  inv CantidadSuavizante : self.cantSuavizante <= self.lavadora.capSuavizante 
+    --10. Si el lavado incluye jerseis, entonces no puede llevar suavizante
+  inv JerseysNoSuavizante : self.prendas->collect(tipo)->includes(#Jersey)
+                                    implies self.cantSuavizante=0
+ --11. El peso del lavado no puede superar el máximo de la lavadora
+  inv PesoControlado : self.peso <= self.lavadora.maxPeso 
+
+context ColadaSecado 
+    --12. La temperatura de secado debe ser menor al máximo de la lavadora secadora
+  inv TiempoSecado : self.tempSecado <= self.lavadora.maxTempSecado
+    --13. El secado debe comenzar tras el centrifugado (o lavado si no hay centrifugado)
+  inv SecadoDespues : self.inicioC<>null implies self.inicioC < self.inicioS and self.inicioC=null implies self.inicioL < self.inicioS
+ --11. El peso del lavado no puede superar el máximo de la lavadora
+  inv PesoControlado : self.peso <= self.lavadora.maxPeso 

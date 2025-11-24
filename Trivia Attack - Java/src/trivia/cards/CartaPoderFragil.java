@@ -1,0 +1,19 @@
+package trivia.cards;
+import trivia.model.Rareza;
+
+public class CartaPoderFragil extends CartaPoder {
+    private final String nombre;
+    private final String descripcion;
+    private boolean rota = false;
+
+
+    public CartaPoderFragil(int id, Rareza rareza, int espacio, String nombre, String descripcion, trivia.cards.strategy.CardEffect efecto) {
+        super(id, rareza, espacio, efecto);
+        this.nombre = nombre;
+        this.descripcion = descripcion;
+    }
+
+
+    public boolean isRota() { return rota; }
+    public void setRota(boolean rota) { this.rota = rota; }
+}

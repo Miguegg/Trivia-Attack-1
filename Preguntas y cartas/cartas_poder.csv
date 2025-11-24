@@ -1,0 +1,25 @@
+codename,nombre;rareza;tipo;descripcion;id
+Espejo;Espejo;Común;Inmediata;Debes responder tú a la pregunta.;1
+EspejoRetocado;Espejo retocado;Inusual;Inmediata;Debes responder tú a la pregunta, pero puedes elegir la categoría que quieras;2 
+Derechazo;Derechazo;Común;Inmediata;Debes preguntar sí o sí al rival de tu derecha. Pero juegas +1 punto esta pregunta, solo tú.;3
+GanchoAveriado;Gancho averiado;Rara;Inmediata;Si el rival falla, no podrá coger carta de poder en su próximo turno. Si acierta, serás tú quien no podrá.;4
+LluviaDePuntos;Lluvia de Puntos;Inusual;Ambiental;Hasta que vuelva a ser tu turno, todos los jugadores juegan +1 punto por pregunta.;5
+RosalConPuas;Rosal con púas;Común;Ambiental;Coloca esta carta sobre un montón de preguntas de una categoría concreta. Quien caiga en esa categoría pierde un 1 punto automáticamente, después de lo cual esta carta desaparece.;6
+SueloMojado;Suelo mojado;Inusual;Ambiental;Coloca esta carta dobre un montón de preguntas de una categoría concreta. Nadie puede preguntar esta categoría hasta que vuelva a ser tu turno. Si alguien cae, le obliga a tirar el dado otra vez.;7
+SegundaOportunidad;Segunda Oportunidad;Común;Inventario;Esta carta se usa automáticamente cuando respondes mal a una pregunta. Te permite poder responder a otra pregunta de la misma categoría.;8
+TelefonoRojo;Teléfono rojo;Inusual;Inventario;Usa esta carta para que otro rival responda la pregunta por ti. Los dos ganáis los puntos en juego por la pregunta.;9
+Clonacion;Clonación;Inusual;Inventario;Después de activar esta carta, podrás elegir 2 opciones cada vez que te pregunten. Si 1 de las 2 es correcta, ganas la pregunta. Después de activarla, dura una vuelta.;10
+Anfibio;Anfibio;Rara;Frágil;Tira los dados 2 veces, elige la categoría que prefieras de las que salgan. La carta se rompe si alguien responde bien a tu pregunta.;11
+CombustionEspontanea;Combustión espontánea;Legendaria;Frágil;Descarta las cartas de poder que te vayan tocando, a cambio, juegas +1 punto solo tú de forma acumulativa. Si alguien (incluyéndote) usa un x2, la carta se rompe.;12
+LaFavorita;La favorita;Legendaria;Frágil;Puedes acceder y robar las cartas del inventario de un rival que tenga más puntos que tú. Si sobrepasas al rival en puntos o te gana una pregunta, esta carta se rompe.;13
+Adicional;Adicional;Común;Inmediata;Juega +1 punto en la siguiente pregunta.;14
+PactoDeNoAgresion;Pacto de no agresión;Común;Inmediata;El siguiente rival al cual preguntes no podrá preguntarte a ti en su siguiente turno.;15
+FiftyFifty;50/50;Común;Inventario;Descarta 2 opciones incorrectas de la pregunta al usarse esta carta;16
+LineaDeMeta;Línea de meta;Inusual;Inventario;Usa esta carta cuando estés a punto de sobrepasar a un rival en puntuación. Ese rival te da 2 puntos suyos.;17
+Cambiazo;Cambiazo;Inusual;Inventario;Cambia la categoría si te preguntan. El rival tira otra vez los dados.;18
+TormentaDePuntos;Tormenta de puntos;Rara;Ambiental;Hasta que vuelva a ser tu turno, todos los jugadores juegan +1 por pregunta si responden o eligen bien, y -1 si responden o eligen mal.;19
+Congelacion;Congelación;Rara;Inventario;Usa este poder contra otras cartas de poder. Congela su efecto si están activas. Si no están activas, no se puede usar esa carta. El efecto de congelación dura hasta que vuelva a ser tu turno.;22
+ElMuro;El muro;Rara;Inventario;Hasta tu próximo turno; no te afectan los poderes que los rivales jueguen sobre ti.;21
+GatoSchrodinger;El gato de Schrödinger;Legendaria;Inventario;Usa esta carta contra un rival o contra ti mismo, en cualquier momento. Anula la última ganancia o pérdida de puntos de ese jugador.;22
+Cambiaformas;Cambiaformas;Legendaria;Inventario;Usa esta carta al preguntar. Si el rival falla, tendrás los mismos puntos que él. Al principio de cada turno tuyo, si tienes esta carta en tu inventario, pierdes -1 punto.;23
+Marioneta;Marioneta;Legendaria;Inventario;Usa esta carta durante el turno de un rival. Controla todas sus acciones durante ese turno.;24
