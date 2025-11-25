@@ -1,5 +1,7 @@
 Cosas que quedan por hacer:
 
+-Cuando un respondedor no responde a la pregunta, hay que seguir la misma lógica que cuando falla. Ahora mismo simplemente se muestra un mensaje y se para el juego
+
 -Hacer una selección de cartas de poder relativamente sencillas de implementar (cambiar las del use a la selección)
 
 -Expandir los invariantes del use. Añadir invariantes relativos a las cartas seleccionadas
