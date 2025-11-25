@@ -8,7 +8,7 @@ public class CartaPoderAmbiental extends CartaPoder {
     private boolean activa = false;
 
 
-    public CartaPoderAmbiental(int id, Rareza rareza, int espacio, String nombre, String descripcion, trivia.cards.strategy.CardEffect efecto) {
+    public CartaPoderAmbiental(int id, Rareza rareza, int espacio, String nombre, String descripcion, trivia.cards.strategy.EfectoCarta efecto) {
         super(id, rareza, espacio, efecto);
         this.nombre = nombre;
         this.descripcion = descripcion;

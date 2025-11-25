@@ -7,7 +7,7 @@ public class CartaPoderFragil extends CartaPoder {
     private boolean rota = false;
 
 
-    public CartaPoderFragil(int id, Rareza rareza, int espacio, String nombre, String descripcion, trivia.cards.strategy.CardEffect efecto) {
+    public CartaPoderFragil(int id, Rareza rareza, int espacio, String nombre, String descripcion, trivia.cards.strategy.EfectoCarta efecto) {
         super(id, rareza, espacio, efecto);
         this.nombre = nombre;
         this.descripcion = descripcion;

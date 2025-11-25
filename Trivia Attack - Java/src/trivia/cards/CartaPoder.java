@@ -12,10 +12,10 @@ public abstract class CartaPoder {
     protected boolean utilizable = true;
 
 
-    protected final trivia.cards.strategy.CardEffect efecto;
+    protected final trivia.cards.strategy.EfectoCarta efecto;
 
 
-    public CartaPoder(int id, Rareza rareza, int espacio, trivia.cards.strategy.CardEffect efecto) {
+    public CartaPoder(int id, Rareza rareza, int espacio, trivia.cards.strategy.EfectoCarta efecto) {
         this.id = id;
         this.rareza = rareza;
         this.espacioEnInventario = espacio;
@@ -40,10 +40,10 @@ public abstract class CartaPoder {
     public void setUtilizable(boolean u) { this.utilizable = u; }
 
 
-    // Strategy: delega el efecto concreto a implementaciones de CardEffect
+    // Strategy: delega el efecto concreto a implementaciones de EfectoCarta
     public void usar(trivia.game.Partida partida, trivia.player.Jugador actor) {
         if (!utilizable) throw new IllegalStateException("Carta no utilizable en este momento");
-        efecto.apply(partida, actor, this);
+        efecto.usar(partida, actor, this);
         this.jugada = true;
     }
 }
