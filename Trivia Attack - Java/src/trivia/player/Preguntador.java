@@ -2,50 +2,174 @@ package trivia.player;
 
 import trivia.game.Turno;
 import trivia.game.Partida;
+import trivia.model.Categoria;
 import trivia.model.Pregunta;
-import java.util.Scanner;
+import trivia.network.Server;
+import trivia.piles.MontonPreguntas;
+import trivia.util.Dado;
+
+import java.util.concurrent.TimeUnit;
 
 public class Preguntador extends EstadoJugador {
 
+    private final Dado dado;
+    private Turno turnoActual; // Guardar turno creado
+
     public Preguntador(Jugador j) {
         super(j);
+        this.dado = new Dado(6);
+    }
+
+    public Turno getTurnoActual() {
+        return turnoActual;
     }
 
     @Override
-    public void onTurnStart(Partida partida) {
-        System.out.println("\n--- Turno de " + jugador.getNombre() + " (Preguntador) ---");
-        System.out.println("Vuelta actual: " + partida.getVueltaActual());
-        mostrarInventario();
+    public void onTurnStart(Partida partida, Server server) {
+        server.send(jugador, "\n--- Turno de " + jugador.getNombre() + " (Preguntador) ---");
+        server.send(jugador, "Vuelta actual: " + partida.getVueltaActual());
+        mostrarInventario(server);
 
-        System.out.println("Opciones:");
-        System.out.println("[1] Robar carta (no disponible)");
-        System.out.println("[2] Usar carta (no disponible)");
-        System.out.println("[3] Lanzar dado");
+        server.send(jugador, "Opciones:");
+        server.send(jugador, "[1] Robar carta (no disponible)");
+        server.send(jugador, "[2] Usar carta (no disponible)");
+        server.send(jugador, "[3] Lanzar dado");
 
-        // Por ahora, ignoramos las cartas
-        Scanner sc = new Scanner(System.in);
-        System.out.print("Elige opción: ");
-        String opcion = sc.nextLine().trim();
-
-        System.out.println("Lanzando dado para elegir categoría...");
-        int cara = (int)(Math.random() * 6) + 1; // simula dado 6 caras
-        System.out.println("Resultado dado: " + cara);
-        // TODO: Asignar categoría según dado y sacar pregunta
-    }
-
-    @Override
-    public void onTurnEnd(Turno turno, Partida partida) {
-        if (turno.getRespuestaRespondedor() != null) {
-            if (turno.getRespuestaRespondedor().esCorrecta()) {
-                System.out.println("El respondedor acertó. No ganaste puntos.");
-            } else {
-                System.out.println("El respondedor falló. Has ganado " + turno.puntosAsignados + " puntos.");
+        // Esperar opción del jugador vía red
+        String opcion = "";
+        while (!"3".equals(opcion)) {
+            try {
+                server.send(jugador, "Elige opción (solo '3' disponible por ahora):");
+                String resp = server.getHandler(jugador).pollNextMessage(60, TimeUnit.SECONDS);
+                if (resp == null) {
+                    server.send(jugador, "No se recibió opción a tiempo. Se usará 'Lanzar dado'.");
+                    opcion = "3";
+                } else {
+                    opcion = resp.trim();
+                    if (!"3".equals(opcion)) {
+                        server.send(jugador, "Esa opción no está disponible. Debes elegir '3'.");
+                    }
+                }
+            } catch (InterruptedException e) {
+                server.send(jugador, "Error esperando opción. Se usará 'Lanzar dado'.");
+                opcion = "3";
+                Thread.currentThread().interrupt();
             }
+        }
+
+        // Lanzar dado y seleccionar categoría
+        server.send(jugador, "Lanzando dado para elegir categoría...");
+        int resultadoDado = dado.tirar();
+        Categoria cat = Categoria.values()[resultadoDado - 1];
+        server.send(jugador, "Resultado del dado: " + resultadoDado + " -> Categoría: " + cat);
+
+        // Mostrar info de jugadores nuevamente al preguntador
+        server.send(jugador, "Información de jugadores:");
+        for (Jugador j : partida.getJugadores()) {
+            if(!j.equals(jugador)) {
+                server.send(jugador, j.mostrarInformacion());
+                server.send(jugador,"Puntuación:" + partida.getPuntuaciones().get(j.getId()));
+            }
+
+        }
+
+        // Buscar montón correspondiente
+        MontonPreguntas monton = partida.getMontonesPreguntas().stream()
+                .filter(m -> m.getCategoria() == cat)
+                .findFirst().orElse(null);
+
+        if (monton == null || monton.size() == 0) {
+            server.send(jugador, "No hay preguntas disponibles en esta categoría.");
+            return;
+        }
+
+        // Robar pregunta
+        Pregunta pregunta = monton.robar();
+        partida.registrarPreguntaUsada(pregunta);
+
+        // Elegir jugador respondedor
+        server.send(jugador, "Elige un jugador para responder:");
+        int i = 0;
+        for (Jugador j : partida.getJugadores()) {
+            if (j != jugador) server.send(jugador, i + ": " + j.getNombre());
+            i++;
+        }
+
+        int idx = -1;
+        while (idx < 0 || idx >= partida.getJugadores().size() || partida.getJugadores().get(idx) == jugador) {
+            try {
+                server.send(jugador, "Introduce el número del jugador:");
+                String msg = server.getHandler(jugador).pollNextMessage(60, TimeUnit.SECONDS);
+                if (msg != null) idx = Integer.parseInt(msg.trim());
+            } catch (InterruptedException ex) {
+                server.send(jugador, "Tiempo agotado. Seleccionando primer rival disponible...");
+                for (i = 0; i < partida.getJugadores().size(); i++) {
+                    if (partida.getJugadores().get(i) != jugador) {
+                        idx = i;
+                        break;
+                    }
+                }
+            } catch (NumberFormatException e) {
+                server.send(jugador, "Número inválido. Intenta de nuevo.");
+            }
+        }
+
+
+        // Elegir a un jugador respondedor
+        Jugador respondedor = partida.getJugadores().get(idx);
+        respondedor.setEstado(new Respondedor(respondedor));
+
+        // Notificar a los jugadores en espera sobre quién fue elegido
+        for (Jugador j : partida.getJugadores()) {
+            if (j != jugador && j != respondedor) {
+                server.send(j, jugador.getNombre() + " ha escogido a " + respondedor.getNombre() + " como respondedor.");
+            }
+        }
+
+        // Crear y guardar turno
+        turnoActual = new Turno(jugador, respondedor, pregunta);
+        turnoActual.setPuntosAsignados(1);
+
+        // Notificar a jugadores en espera antes de que respondan
+        for (Jugador j : partida.getJugadores()) {
+            if (j != jugador && j != respondedor) {
+                j.getEstado().onTurnStart(partida, server);
+            }
+        }
+
+        // Notificar a todos
+        server.broadcast("Pregunta: " + pregunta.getTexto());
+        char letra = 'A';
+        for (int j = 0; j < pregunta.getRespuestas().length; j++) {
+            server.broadcast(letra + ": " + pregunta.getRespuestas()[j].getTexto());
+            letra++;
+        }
+
+        // Enviar pregunta al respondedor
+        server.send(respondedor, "¡Te han elegido para responder!");
+        respondedor.getEstado().recibirPregunta(turnoActual, partida, server);
+    }
+
+    @Override
+    public void onTurnEnd(Turno turno, Partida partida, Server server) {
+        if (turno.getRespuestaRespondedor() != null && !turno.getRespuestaRespondedor().esCorrecta()) {
+            server.send(jugador, "El respondedor falló. Has ganado " + turno.puntosAsignados + " puntos.");
+        } else {
+            server.send(jugador, "El respondedor acertó. No ganaste puntos.");
         }
     }
 
     @Override
-    public void recibirPregunta(Turno turno, Partida partida) {
+    public void recibirPregunta(Turno turno, Partida partida, Server server) {
         throw new IllegalStateException("El preguntador no puede recibir preguntas.");
+    }
+
+    @Override
+    public void mostrarInventario(Server server) {
+        server.send(jugador, "Inventario: (aún no disponible)");
+    }
+
+    public Dado getDado() {
+        return dado;
     }
 }

@@ -41,7 +41,7 @@ public class Server {
                             continue;
                         }
 
-                        PlayerHandler ph = new PlayerHandler(socket, handlers.size() + 1);
+                        PlayerHandler ph = new PlayerHandler(socket, handlers.size());
                         handlers.add(ph);
                         pool.submit(ph);
 
@@ -138,26 +138,35 @@ public class Server {
         System.out.println();
     }
 
-
-    private void mostrarTurno(Partida partida){
-        broadcast("=======");
-        broadcast("VUELTA "+ partida.getVueltaActual());
-        broadcast("=======");
-
-        broadcast("Información de los jugadores:");
-        mostrarInformacion(partida);
-
-
+    public String pollNextMessage(Jugador jugador, long timeout, TimeUnit unit) throws InterruptedException {
+        PlayerHandler handler = getHandler(jugador);
+        if (handler == null) return null;
+        return handler.pollNextMessage(timeout, unit);
     }
 
-    private void mostrarInformacion(Partida partida) {
-        int index = 0;
-        for(Jugador jugador : partida.getJugadores()) {
-            broadcast("Jugador " + index + ":");
-            broadcast(jugador.mostrarInformacion());
-        }
-    }
-    private void opcionesTurno(){
-
+    public PlayerHandler getHandler(Jugador jugador) {
+        int id = jugador.getId();
+        return handlers.get(id);
     }
 }
+
+
+
+
+
+
+
+/*https://github.com/osvecino/Trivia-Attack/blob/feature/standard_flow/Trivia%20Attack%20-%20Java/src/trivia/game/Partida.java
+https://github.com/osvecino/Trivia-Attack/blob/feature/standard_flow/Trivia%20Attack%20-%20Java/src/trivia/game/Turno.java
+https://github.com/osvecino/Trivia-Attack/blob/feature/standard_flow/Trivia%20Attack%20-%20Java/src/trivia/model/Pregunta.java
+https://github.com/osvecino/Trivia-Attack/blob/feature/standard_flow/Trivia%20Attack%20-%20Java/src/trivia/model/Respuesta.java
+https://github.com/osvecino/Trivia-Attack/blob/feature/standard_flow/Trivia%20Attack%20-%20Java/src/trivia/network/Client.java
+https://github.com/osvecino/Trivia-Attack/blob/feature/standard_flow/Trivia%20Attack%20-%20Java/src/trivia/network/PlayerHandler.java
+https://github.com/osvecino/Trivia-Attack/blob/feature/standard_flow/Trivia%20Attack%20-%20Java/src/trivia/network/Server.java
+https://github.com/osvecino/Trivia-Attack/blob/feature/standard_flow/Trivia%20Attack%20-%20Java/src/trivia/piles/MontonPreguntas.java
+https://github.com/osvecino/Trivia-Attack/blob/feature/standard_flow/Trivia%20Attack%20-%20Java/src/trivia/player/EnEspera.java
+https://github.com/osvecino/Trivia-Attack/blob/feature/standard_flow/Trivia%20Attack%20-%20Java/src/trivia/player/EstadoJugador.java
+https://github.com/osvecino/Trivia-Attack/blob/feature/standard_flow/Trivia%20Attack%20-%20Java/src/trivia/player/Jugador.java
+https://github.com/osvecino/Trivia-Attack/blob/feature/standard_flow/Trivia%20Attack%20-%20Java/src/trivia/player/Preguntador.java
+https://github.com/osvecino/Trivia-Attack/blob/feature/standard_flow/Trivia%20Attack%20-%20Java/src/trivia/player/Respondedor.java
+https://github.com/osvecino/Trivia-Attack/blob/feature/standard_flow/Trivia%20Attack%20-%20Java/src/trivia/util/Dado.java*/

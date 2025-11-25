@@ -51,7 +51,7 @@ public class PlayerHandler implements Runnable {
         }
     }
 
-    void enviarMensaje(String msg) {
+    public void enviarMensaje(String msg) {
         out.println(msg);
     }
 
@@ -65,7 +65,7 @@ public class PlayerHandler implements Runnable {
     /**
      * Espera hasta timeout; devuelve null si no llega nada en ese tiempo.
      */
-    String pollNextMessage(long timeout, TimeUnit unit) throws InterruptedException {
+    public String pollNextMessage(long timeout, TimeUnit unit) throws InterruptedException {
         return incoming.poll(timeout, unit);
     }
 

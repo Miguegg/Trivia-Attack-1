@@ -33,4 +33,5 @@ public class Turno {
             partida.actualizarPreguntasGanadas(jugadorRespondedor);
         } else partida.actualizarPuntuacion(jugadorPreguntador, +puntosAsignados);
     }
+
 }
