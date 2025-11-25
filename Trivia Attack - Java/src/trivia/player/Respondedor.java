@@ -31,6 +31,9 @@ public class Respondedor extends EstadoJugador {
         } else {
             server.send(jugador,"Fallaste la pregunta. No obtienes puntos.");
         }
+
+        // Nota: el bonus se consume y resetea cuando el jugador es elegido (en Preguntador),
+        // por tanto aquí no hace falta resetearlo de nuevo.
     }
 
     @Override
@@ -40,16 +43,8 @@ public class Respondedor extends EstadoJugador {
         // Mezclar respuestas
         List<Respuesta> lista = new ArrayList<>();
         Collections.addAll(lista, p.getRespuestas());
-        Collections.shuffle(lista);
 
         StringBuilder sb = new StringBuilder();
-        sb.append("¡Te han elegido para responder!\n");
-        sb.append("Pregunta: ").append(p.getTexto()).append("\n");
-        char letra = 'A';
-        for (Respuesta r : lista) {
-            sb.append(letra).append(": ").append(r.getTexto()).append("\n");
-            letra++;
-        }
         sb.append("Tienes 30 segundos para responder (A/B/C/D):");
         server.send(jugador, sb.toString());
 
@@ -81,10 +76,7 @@ public class Respondedor extends EstadoJugador {
             server.send(jugador, "Has elegido: " + opcion + " -> " + lista.get(idx).getTexto());
         }
 
-
-
-
         turno.asignarPuntos(partida);
-        partida.agregarTurno(turno);
+        partida.agregarTurnoHistorial(turno);
     }
 }

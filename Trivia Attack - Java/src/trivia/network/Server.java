@@ -106,7 +106,7 @@ public class Server {
         Partida partida = new Partida(jugadores, this);
 
         // Ejecutar el loop en un hilo separado para no bloquear el servidor
-        new Thread(() -> partida.iniciarLoop(this)).start();
+        new Thread(() -> partida.gameLoop(this)).start();
     }
 
     public void broadcast(String msg) {

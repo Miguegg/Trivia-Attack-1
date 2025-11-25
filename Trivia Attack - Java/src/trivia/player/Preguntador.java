@@ -26,6 +26,8 @@ public class Preguntador extends EstadoJugador {
 
     @Override
     public void onTurnStart(Partida partida, Server server) {
+        int puntosJugados = 1;
+
         server.send(jugador, "\n--- Turno de " + jugador.getNombre() + " (Preguntador) ---");
         server.send(jugador, "Vuelta actual: " + partida.getVueltaActual());
         mostrarInventario(server);
@@ -58,10 +60,12 @@ public class Preguntador extends EstadoJugador {
         }
 
         // Lanzar dado y seleccionar categoría
+        server.send(jugador, "");
         server.send(jugador, "Lanzando dado para elegir categoría...");
         int resultadoDado = dado.tirar();
         Categoria cat = Categoria.values()[resultadoDado - 1];
         server.send(jugador, "Resultado del dado: " + resultadoDado + " -> Categoría: " + cat);
+        server.send(jugador, "");
 
         // Mostrar info de jugadores nuevamente al preguntador
         server.send(jugador, "Información de jugadores:");
@@ -114,40 +118,57 @@ public class Preguntador extends EstadoJugador {
             }
         }
 
-
         // Elegir a un jugador respondedor
         Jugador respondedor = partida.getJugadores().get(idx);
         respondedor.setEstado(new Respondedor(respondedor));
 
+        // Obtener bonus acumulado del respondedor (puede ser 0)
+        int bonus = partida.getBonus(respondedor);
+        if (bonus > 0) {
+            puntosJugados += bonus;
+            server.send(jugador, "¡Has elegido a un jugador con bonus de " + bonus + "! Se jugarán " + puntosJugados + " puntos en total (incluyendo bonus).");
+        }
+
+        // Marcar al respondedor como ya preguntado en esta vuelta
+        partida.actualizarPreguntados(respondedor, true);
+
+        // Resetear el bonus del respondedor (se consume al ser preguntado)
+        partida.resetBonus(respondedor);
+
         // Notificar a los jugadores en espera sobre quién fue elegido
         for (Jugador j : partida.getJugadores()) {
             if (j != jugador && j != respondedor) {
+                server.send(j, "");
                 server.send(j, jugador.getNombre() + " ha escogido a " + respondedor.getNombre() + " como respondedor.");
+                if(bonus > 0) server.send(j, "¡Se ha elegido a un jugador con bonus de " + bonus + "! Se jugarán " + puntosJugados + " puntos en total.");
             }
         }
 
         // Crear y guardar turno
         turnoActual = new Turno(jugador, respondedor, pregunta);
-        turnoActual.setPuntosAsignados(1);
-
-        // Notificar a jugadores en espera antes de que respondan
-        for (Jugador j : partida.getJugadores()) {
-            if (j != jugador && j != respondedor) {
-                j.getEstado().onTurnStart(partida, server);
-            }
-        }
+        turnoActual.setPuntosAsignados(puntosJugados);
 
         // Notificar a todos
+        enviarPregunta(server, pregunta);
+
+        // Enviar pregunta al respondedor
+        server.send(respondedor, "================================");
+        server.send(respondedor, "¡Te han elegido para responder!");
+        if(bonus > 0) server.send(respondedor, "Tenías un bonus de " + bonus + " por no ser preguntado. Se jugarán " + puntosJugados + " puntos en este turno.");
+        server.send(respondedor, "================================");
+
+        respondedor.getEstado().recibirPregunta(turnoActual, partida, server);
+    }
+
+    private static void enviarPregunta(Server server, Pregunta pregunta) {
+        server.broadcast("");
         server.broadcast("Pregunta: " + pregunta.getTexto());
         char letra = 'A';
         for (int j = 0; j < pregunta.getRespuestas().length; j++) {
             server.broadcast(letra + ": " + pregunta.getRespuestas()[j].getTexto());
             letra++;
         }
-
-        // Enviar pregunta al respondedor
-        server.send(respondedor, "¡Te han elegido para responder!");
-        respondedor.getEstado().recibirPregunta(turnoActual, partida, server);
+        server.broadcast("");
     }
 
     @Override
@@ -155,7 +176,7 @@ public class Preguntador extends EstadoJugador {
         if (turno.getRespuestaRespondedor() != null && !turno.getRespuestaRespondedor().esCorrecta()) {
             server.send(jugador, "El respondedor falló. Has ganado " + turno.puntosAsignados + " puntos.");
         } else {
-            server.send(jugador, "El respondedor acertó. No ganaste puntos.");
+            server.send(jugador, "El respondedor acertó. No has ganado puntos.");
         }
     }
 

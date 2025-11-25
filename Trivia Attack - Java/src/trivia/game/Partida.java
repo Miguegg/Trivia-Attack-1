@@ -29,8 +29,9 @@ public class Partida {
     private final List<List<CartaPoder>> inventarios = new ArrayList<>();
     private final List<CartaPoder> cartasActivas = new ArrayList<>();
     private final List<Pregunta> yaPreguntadas = new ArrayList<>();
-    private final List<Boolean> listos = new ArrayList<>();
-
+    // Reemplazamos List<Boolean> listos por un contador de bonos por jugador
+    private List<Integer> bonusPorJugador = new ArrayList<>();
+    private List<Boolean> preguntadosEnVuelta = new ArrayList<>();
 
     public Partida(List<Jugador> jugadores, Server server) {
         if (jugadores.size() < 3 || jugadores.size() > 6) {
@@ -45,40 +46,31 @@ public class Partida {
             preguntasGanadasJugadores.add(0);
             tamanosInventario.add(2);
             inventarios.add(new ArrayList<>());
-            listos.add(false);
+            // inicializamos el contador de bonus a 0
+            bonusPorJugador.add(0);
+            preguntadosEnVuelta.add(false);
         }
 
         // Siempre empieza el primer jugador
         jugadorActual = jugadores.get(0);
     }
 
-
-    public synchronized void registrarPreguntaUsada(Pregunta p) {
-        yaPreguntadas.add(p);
-    }
-
     public int getVueltaActual() {
         return vueltaActual;
     }
-
-    public List<MontonPreguntas> getMontonesPreguntas() {
-        return montonesPreguntas;
-    }
-
-    public Jugador getJugadorActual() {
-        return jugadorActual;
-    }
-
-    public List<Jugador> getJugadores() {
-        return jugadores;
-    }
-
+    public List<MontonPreguntas> getMontonesPreguntas() {return montonesPreguntas;}
+    public Jugador getJugadorActual() {return jugadorActual;}
+    public List<Jugador> getJugadores() {return jugadores;}
     public List<Integer> getPuntuaciones() {return puntuacionJugadores;}
 
     public void actualizarPuntuacion(Jugador jugador, int puntosAsignados) {
         int id = jugador.getId();
         int puntosAnteriores = puntuacionJugadores.get(id);
         puntuacionJugadores.set(id, puntosAnteriores + puntosAsignados);
+    }
+
+    public synchronized void registrarPreguntaUsada(Pregunta p) {
+        yaPreguntadas.add(p);
     }
 
     public void actualizarPreguntasGanadas(Jugador jugador) {
@@ -101,59 +93,120 @@ public class Partida {
         }
     }
 
-
-    public void agregarTurno(Turno turno) {
-        historialTurnos.add(turno);
+    public void agregarTurnoHistorial(Turno turno) {historialTurnos.add(turno);}
+    public void actualizarPreguntados(Jugador jugador, Boolean preguntado) {
+        preguntadosEnVuelta.set(jugador.getId(), preguntado);
     }
 
+    /**
+     * Incrementa el bonus (contador) de los jugadores que NO fueron preguntados en la vuelta completa.
+     * Se llama cuando termina una vuelta completa (cuando el índice de turno vuelve a 0).
+     */
+    private void incrementarBonusesNoPreguntados() {
+        for (Jugador j : jugadores) {
+            if (!preguntadosEnVuelta.get(j.getId())) {
+                int id = j.getId();
+                int viejo = bonusPorJugador.get(id);
+                bonusPorJugador.set(id, viejo + 1);
+            }
+        }
+    }
 
-    public void iniciarLoop(Server server) {
+    public void setBonus(Jugador jugador, int valor) { bonusPorJugador.set(jugador.getId(), valor); }
+    public int getBonus(Jugador jugador) { return bonusPorJugador.get(jugador.getId()); }
+    public void resetBonus(Jugador jugador) { bonusPorJugador.set(jugador.getId(), 0); }
+
+    private void actualizarListos() {
+        // este método ya no marca booleans; delega a incrementarBonusesNoPreguntados
+        incrementarBonusesNoPreguntados();
+    }
+
+    public void gameLoop(Server server) {
         int numJugadores = jugadores.size();
         int indiceTurno = 0;
         int maxVueltas = 6;
 
+        //inicializamos las barajas de preguntas
         inicializarMontones();
 
         while (vueltaActual <= maxVueltas) {
-
             jugadorActual = jugadores.get(indiceTurno);
-            for (Jugador j : jugadores) {
-                if (j == jugadorActual) j.setEstado(new Preguntador(j));
-                else j.setEstado(new EnEspera(j));
-            }
-
+            // Actualizar los estados de cada jugador (el jugador actual es preguntador, el resto pasa a espera)
+            actualizarEstados();
             // Mostrar info de vuelta y jugadores
-            server.broadcast("");
-            server.broadcast("=======");
-            server.broadcast("VUELTA " + vueltaActual);
-            server.broadcast("=======");
-            server.broadcast("Información de jugadores:");
-            for (Jugador j : jugadores) {
-                server.broadcast(j.mostrarInformacion());
-                server.broadcast("Puntuación: " + puntuacionJugadores.get(j.getId()));
-            }
+            mostrarVuelta(server);
+            //Mostrar información de la partida para cada jugador
+            mostrarInfoPartida(server);
 
             // Ejecutar turno del preguntador
-            jugadorActual.getEstado().onTurnStart(this, server);
-
-            // Ejecutar onTurnStart de jugadores en espera
+            empezarTurno(jugadorActual, server);
+            // Ejecutar turno de jugadores en espera
             for (Jugador j : jugadores) {
-                if (j != jugadorActual) j.getEstado().onTurnStart(this, server);
+                if (j != jugadorActual) empezarTurno(j, server);
             }
 
             // Finalizar turno
-            Turno turnoActual = ((Preguntador) jugadorActual.getEstado()).getTurnoActual();
-            if (turnoActual != null) {
-                jugadorActual.getEstado().onTurnEnd(turnoActual, this, server);
-                turnoActual.getJugadorRespondedor().getEstado().onTurnEnd(turnoActual, this, server);
-            }
+            terminarTurno(server);
 
             // Pasar a siguiente jugador / vuelta
             indiceTurno = (indiceTurno + 1) % numJugadores;
-            if (indiceTurno == 0) vueltaActual++;
+            if (indiceTurno == 0) {
+                // Marcamos como listos a los no preguntados (ahora incrementa su bonus)
+                actualizarListos();
+
+                // Reseteamos los preguntados
+                for(Jugador j : jugadores) actualizarPreguntados(j, false);
+
+                vueltaActual++;
+            }
         }
 
         server.broadcast("¡Partida finalizada!");
+    }
+
+    private void terminarTurno(Server server) {
+        Turno turnoActual = ((Preguntador) jugadorActual.getEstado()).getTurnoActual();
+        if (turnoActual != null) {
+            jugadorActual.getEstado().onTurnEnd(turnoActual, this, server);
+            turnoActual.getJugadorRespondedor().getEstado().onTurnEnd(turnoActual, this, server);
+        }
+    }
+
+    private void empezarTurno(Jugador jugadorActual, Server server) {
+        jugadorActual.getEstado().onTurnStart(this, server);
+    }
+
+    private void mostrarInfoPartida(Server server) {
+        for (Jugador j : jugadores) {
+            server.broadcast("");
+            server.broadcast("================================================================================================");
+            server.broadcast(j.mostrarInformacion());
+            server.broadcast("Puntuación: " + puntuacionJugadores.get(j.getId()));
+            server.broadcast("Preguntas ganadas: " + preguntasGanadasJugadores.get(j.getId()));
+
+            if(vueltaActual!=1) {
+                int bonus = bonusPorJugador.get(j.getId());
+                if(bonus > 0) server.broadcast("Este jugador tiene bonus de " + bonus + " (no fue preguntado durante " + bonus + " vuelta(s)). Se jugarán " + bonus + " puntos adicionales en la siguiente pregunta que reciba.");
+                else server.broadcast("Este jugador no tiene bonus actualmente.");
+            }
+
+            server.broadcast("================================================================================================");
+        }
+    }
+
+    private void actualizarEstados() {
+        for (Jugador j : jugadores) {
+            if (j == jugadorActual) j.setEstado(new Preguntador(j));
+            else j.setEstado(new EnEspera(j));
+        }
+    }
+
+    private void mostrarVuelta(Server server) {
+        server.broadcast("");
+        server.broadcast("=======");
+        server.broadcast("VUELTA " + vueltaActual);
+        server.broadcast("=======");
+        server.broadcast("Información de jugadores:");
     }
 
 
