@@ -28,7 +28,7 @@ public class Turno {
     public Respuesta getRespuestaRespondedor() {return respuestaRespondedor;}
 
     public void asignarPuntos(Partida partida) {
-        if(respuestaRespondedor.esCorrecta()) {
+        if(respuestaRespondedor!=null && respuestaRespondedor.esCorrecta()) {
             partida.actualizarPuntuacion(jugadorRespondedor, +puntosAsignados);
             partida.actualizarPreguntasGanadas(jugadorRespondedor);
         } else partida.actualizarPuntuacion(jugadorPreguntador, +puntosAsignados);

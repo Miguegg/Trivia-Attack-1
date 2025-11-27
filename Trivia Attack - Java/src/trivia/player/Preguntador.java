@@ -105,6 +105,16 @@ public class Preguntador extends EstadoJugador {
                 server.send(jugador, "Introduce el número del jugador:");
                 String msg = server.getHandler(jugador).pollNextMessage(60, TimeUnit.SECONDS);
                 if (msg != null) idx = Integer.parseInt(msg.trim());
+                else {
+                    server.send(jugador, "Tiempo agotado. Seleccionando primer rival disponible...");
+                    for (i = 0; i < partida.getJugadores().size(); i++) {
+                        if (partida.getJugadores().get(i) != jugador) {
+                            idx = i;
+                            break;
+                        }
+                    }
+                    server.send(jugador, "¡Se ha elegido a " + partida.getJugadores().get(i).getNombre());
+                }
             } catch (InterruptedException ex) {
                 server.send(jugador, "Tiempo agotado. Seleccionando primer rival disponible...");
                 for (i = 0; i < partida.getJugadores().size(); i++) {
