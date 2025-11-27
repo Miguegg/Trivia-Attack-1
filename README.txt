@@ -10,8 +10,6 @@ Cosas que quedan por hacer:
 
 -Hacer lo del soil y probar los invariantes y tal
 
--Aumentar los bancos de preguntas (cada .csv). Es muy importante que sigáis exactamente el mismo formato que hay ahora mismo para que la lógica funcione. Si sois capaces de cambiarlo a una base de datos en condiciones mejor pero no es prioritario, con los .csv funciona
-
 -Implementar alguna forma de registrar los perfiles de los usuarios (ahora mismo no se pide el nombre, ni hay un historial de efectividad para cada categoría) en una base de datos. Si lo veis muy complicado hacemos unos .csv de mock que se guarden en el propio repositorio y ya, como los de las preguntas. No me cambieis los IDs que casi todo depende de que se correspondan con posiciones en listas
 
 -Añadir la lógica para actualizar esos perfiles con cada respuesta (clase respondedor)
