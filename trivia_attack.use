@@ -1,0 +1,308 @@
+model trivia_attack
+
+
+enum Categoria {Arte, Ciencia, Deporte, Entretenimiento, Geografia, Historia}
+enum Rareza {Comun, Inusual, Rara, Legendaria}
+enum CartaInmediata {Espejo, EspejoRetocado, Derechazo, GanchoAveriado, Adicional, PactoDeNoAgresion}
+enum CartaAmbiental {LluviaDePuntos, RosalConPuas, SueloMojado, TormentaDePuntos}
+enum CartaInventario {SegundaOportunidad, TelefonoRojo, Clonacion, FiftyFifty, LineaDeMeta, Cambiazo, Congelacion, ElMuro, GatoSchrodinger, Cambiaformas, Marioneta}
+enum CartaFragil {Anfibio, CombustionEspontanea, LaFavorita}
+enum CartaEterea {placeholder}
+
+-- Realizar implementación en Java es obligatorio, pasarlo a Godot es opcional y no prioritario -> Primera versión basada en texto en Java
+-- Son muchísimas cartas de poder y todas tienen funcionalidades distintas, habrá que crear una clase de Java para cada una siguiendo algún patrón (no se contempla en el conceptual)
+-- Igual hay que recortar alguna para la versión a entregar
+-- Los jugadores pueden usar cartas cuando NO es su turno -> Usar threads en java para cada jugador con monitores/locks 
+
+-- POSIBLES PATRONES (no aplica al conceptual)
+-- Patrón estado (un jugador puede ser preguntador (es su turno), respondedor o estar en espera)
+-- Patrón iterador (definir recorridos sobre el montón de cartas de poder y los montones de cartas e incluso los inventarios, se permite el uso simultáneo desde varios clientes)
+-- Patrón Fábrica abstracta (crea familias de objetos relacionados, en nuestro caso los montones por categoría y los tipos de carta de poder)
+-- Patrón Estrategia (para cada tipo de carta de poder, definir el metodo usar() en cada carta distinta) -> Combinar con la anterior
+
+--------------
+--- CLASES ---
+--------------
+
+-- En la clase jugador se guardan SOLO las estadísticas permanentes --
+-- Por ejemplo, la puntuación de un jugador en una partida NO debería guardarse aquí, sino en la clase partida --
+-- Las separación de preguntador y respondedor se haría en el modelo de diseño, NO en el conceptual --
+
+class Jugador
+    attributes
+        id : Integer
+        nombre : String
+        historial_efectividad : Sequence(Integer) --Secuencia en orden alfabético Arte, Ciencia, Deporte, Entretenimiento, Geografia, Historia --
+end
+
+associationclass Turno between
+    Jugador[1] role preguntador 
+    Jugador[1] role respondedor
+    attributes
+        jugador_preguntador : Jugador
+        jugador_respondedor : Jugador
+        pregunta : Pregunta
+        respuesta_respondedor : Respuesta
+        puntos_asignados : Integer
+        temporizador : Integer
+end
+
+class Partida 
+    attributes 
+        vuelta_actual : Integer
+        historial_turnos : Sequence(Turno) -- Historial de turnos
+        montones_preguntas : Sequence(MontonPreguntas) --Secuencia en orden alfabético Arte, Ciencia, Deporte, Entretenimiento, Geografia, Historia --
+        jugadores : Sequence(Jugador) -- Secuencia de jugadores (entre 3 y 6) --
+        puntuacion_jugadores : Sequence(Integer) -- El valor en el índice i es la puntuación del jugador i --
+        preguntas_ganadas_jugadores : Sequence(Integer) -- Igual que lo anterior, pero para preguntas ganadas --
+        tamano_inventarios : Sequence(Integer) -- El tamaño de los inventarios de los jugadores puede variar --
+        inventarios : Sequence(Sequence(CartaPoder)) -- Lista de listas donde cada sublista en posición i contiene las cartas del inventario correspondiente al jugador i --
+        cartas_activas : Sequence(CartaPoder) -- Lista de cartas de poder activas en un determinado momento de la partida --
+        ya_preguntadas : Sequence(Pregunta) -- Lista de preguntas ya preguntadas en esta partida
+        listos : Sequence(Boolean) -- Un jugador se considera listo si no ha sido preguntado en una vuelta entera
+end
+
+
+class Pregunta
+    attributes
+        id : Integer
+        categoria : Categoria
+        pregunta : String
+        respuestaCorrecta : String -- A, B, C o D
+end
+
+class MontonPreguntas
+    attributes
+        categoria : Categoria
+        preguntas : Sequence(Pregunta)
+end
+
+class MontonCartas
+    attributes
+        cartas : Sequence(CartaPoder)
+end 
+
+class Respuesta 
+    attributes
+        respuesta : String -- El texto de la respuesta --
+        correcta : Boolean 
+end
+
+abstract class CartaPoder
+    attributes
+        id : Integer
+        rareza : Rareza
+        espacio_en_inventario : Integer 
+        jugada : Boolean
+        congelada : Boolean -- Carta congelación. Si no se ha jugado no se puede jugar, si se ha jugado y está activa se pausa --
+        utilizable : Boolean -- Una carta puede ser utilizable o no dependiendo del momento. Por ejemplo, Marioneta es utilizable solo cuando NO es tu turno
+end
+
+class CartaPoderInmediata < CartaPoder
+    attributes
+        nombre : CartaInmediata
+        descripcion : String
+end
+
+class CartaPoderAmbiental < CartaPoder
+    attributes
+        nombre : CartaAmbiental
+        descripcion : String
+        activa : Boolean
+end
+
+class CartaPoderInventario < CartaPoder
+    attributes
+        nombre : CartaInventario
+        descripcion : String
+end
+
+class CartaPoderFragil < CartaPoder
+    attributes 
+        nombre : CartaFragil
+        descripcion : String
+        rota : Boolean
+end
+
+class CartaPoderEterea < CartaPoder
+    attributes
+        nombre : CartaEterea
+        descripcion : String
+end
+
+class Dado 
+    attributes
+        numeroCaras : Integer
+        resultado : Integer
+end 
+
+--------------------
+--- ASOCIACIONES ---
+--------------------
+
+-- REVISAR LOS TIPOS DE ASOCIACIONES (AGREGACION, COMPOSICION ETC) Y MULTIPLICIDADES
+
+aggregation JuegaA between
+    Partida[0..*] role partida
+    Jugador[3..6] role jugador
+end
+
+composition Tiene between
+    Pregunta[1] role pregunta
+    Respuesta[4] role respuesta
+end
+
+composition Conformada between
+    Partida[1] role partida
+    Turno[1..*] role turnos
+end
+
+-- Las preguntas se realizan siempre durante el turno, aunque sean los jugadores quienes las hacen/respondan --
+-- Esto se sobreentiende al ser Turno una clase de asociación entre jugadores --
+-- Además, según la carta de poder utilizada los roles de respondedor y/o preguntador pueden cambiar --
+
+-- Cada pregunta solo puede realizarse como mucho en un turno en cada partida --
+association preguntadorRealiza between
+    Pregunta[1] role pregunta
+    Turno[0..1] role turno
+end
+
+-- Solo se puede responder una respuesta, aunque haya 4 disponibles --
+association respondedorContesta between
+    Respuesta[1] role respuesta
+    Turno[0..1] role turno
+end
+
+-- Un jugador puede usar cartas incluso cuando no es su turno --
+association Utiliza between 
+    Jugador[1] role jugador
+    CartaPoder[0..*] role carta
+end
+
+-- Un jugador solo puede lanzar dados cuando es su turno --
+-- Aunque el dado se pueda lanzar muchas veces, siempre se lanza el mismo --
+association Lanza between
+    Turno[1..*] role turno
+    Dado[1] role dado
+end
+
+association TienePreguntas between 
+    MontonPreguntas[1] role montones_preguntas
+    Pregunta[1..*] role pregunta
+end 
+
+association TieneMontones between
+    Partida[1] role partida
+    MontonPreguntas[6] role montones_preguntas
+end
+
+association TieneCartas between
+    CartaPoder[1..*] role carta
+    MontonCartas[1] role monton_cartas
+end 
+
+association TieneMonton between
+    Partida[1] role partida
+    MontonCartas[1] role monton_cartas
+end 
+
+association EstanEnInventarios between
+    Partida[1] role partida
+    CartaPoder[0..*] role carta
+end 
+
+association PreguntadorCoge between 
+    Turno[1] role turno
+    CartaPoder[1] role carta
+end
+
+
+-------------------
+--- INVARIANTES ---
+-------------------
+constraints
+
+context Partida
+-- Debe haber entre 3 y 6 jugadores --
+    inv NumJugadoresEntre3Y6 : self.jugadores->size() >= 3 and jugadores->size() <= 6
+
+-- Una partida no puede durar más de 6 vueltas
+    inv PartidaMaximo6Vueltas : self.vuelta_actual >= 1 and self.vuelta_actual <= 6
+
+-- Las cartas de poder ambientales se eliminan de la lista de cartas activas en la partida cuando se desactivan
+    inv CartasAmbientalesActivas :
+        self.cartas_activas->forAll(c |
+            c.oclIsTypeOf(CartaPoderAmbiental) implies
+            c.oclAsType(CartaPoderAmbiental).activa = true
+        )
+
+-- Si una pregunta ya ha sido preguntada en una partida, no se puede volver a preguntar --
+    inv PreguntasUnicas : self.ya_preguntadas->isUnique(id)
+
+-- Las cartas de poder frágiles no pueden seguir en el inventario cuando se rompen --
+    inv CartasFragilesRotasFueraInventario :
+        self.inventarios->forAll(inventario |
+            inventario->forAll(carta |
+                not (carta.oclIsTypeOf(CartaPoderFragil) and carta.oclAsType(CartaPoderFragil).rota)
+            )
+        )
+
+-- Las cartas de poder ambientales no se guardan en ningún inventario --
+    inv CartasAmbientalesNoEnInventario :
+        self.inventarios->forAll(inventario |
+            inventario->forAll(carta |
+                not carta.oclIsTypeOf(CartaPoderAmbiental)
+            )
+        )
+
+-- Las cartas de poder inmediatas no se guardan en ningún inventario --
+    inv CartasInmediatasNoEnInventario :
+        self.inventarios->forAll(inventario |
+            inventario->forAll(carta |
+                not carta.oclIsTypeOf(CartaPoderInmediata)
+            )
+        )
+
+context Dado
+-- El resultado del dado debe ser un entero entre 1 y 6
+    inv DadoDaResultadoCorrecto : self.resultado >= 1 and self.resultado <= 6 
+
+
+context Turno
+-- El preguntador no puede preguntarse a sí mismo (en circunstancias normales)
+    inv PreguntadorDistintoDeRespondedor :
+        self.jugador_preguntador <> self.jugador_respondedor
+
+context Pregunta
+-- Cada pregunta tiene siempre 4 respuestas posibles, excepto cuando se usa una carta de poder que lo modifique --
+    inv PreguntaTieneCuatroRespuestas : self.respuesta->size() = 4
+
+context MontonPreguntas
+-- Todas las preguntas de un mismo montón deben ser de la misma categoría
+    inv MismaCategoria :
+        self.preguntas->forAll(p | p.categoria = self.categoria)
+
+
+context CartaPoderInmediata
+-- Las cartas de poder inmediatas se deben jugar al momento de conseguirlas OBLIGATORIAMENTE --
+    inv InmediataJugada :
+        self.jugada = true
+
+context CartaPoderEterea
+-- Las cartas de poder etereas no ocupan espacio de inventario --
+    inv EtereaNoOcupa : self.espacio_en_inventario = 0
+
+context Partida
+-- Cada jugador en la partida debe tener
+inv inventarioMenorCapacidad:
+    Sequence{1..self.inventarios->size()}->forAll(i |
+        self.inventarios->at(i)->size() <= self.tamano_inventarios->at(i)
+    )
+  
+
+--------------------------------------
+--- INVARIANTES DE CARTAS DE PODER ---
+--------------------------------------
+
+-- TODO
+
